@@ -46,8 +46,12 @@ export const Save = () => {
       toast.success('Goal updated successfully');
     } catch (error) {
       console.error('Failed to update goal:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update goal';
-      toast.error(errorMessage);
+      if (error?.code === 4001 || error?.code === 'ACTION_REJECTED') {
+        toast.error('Transaction cancelled');
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to update goal';
+        toast.error(errorMessage);
+      }
     } finally {
       setIsUpdatingGoal(false);
     }
@@ -68,8 +72,12 @@ export const Save = () => {
       toast.success('Deposit successful');
     } catch (error) {
       console.error('Failed to deposit:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to process deposit';
-      toast.error(errorMessage);
+      if (error?.code === 4001 || error?.code === 'ACTION_REJECTED') {
+        toast.error('Transaction cancelled');
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to process deposit';
+        toast.error(errorMessage);
+      }
     } finally {
       setIsDepositing(false);
     }

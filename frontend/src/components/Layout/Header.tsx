@@ -22,8 +22,7 @@ export const Header = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  // Handle scroll effect for header
-  useEffect(() => {
+    useEffect(() => {
     const handleScroll = () => {
       const isScrolled = window.scrollY > 10;
       if (isScrolled !== scrolled) {
