@@ -1,64 +1,21 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Activity as ActivityIcon, Filter, Search, Calendar } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { MyInput } from '../components/ui/MyInput';
 import { Chip } from '../components/ui/Chip';
 import { Transaction } from '../types';
+import { useWallet } from '../hooks/useWallet';
+import { ethers } from 'ethers';
 
-const mockTransactions: Transaction[] = [
-  {
-    id: '1',
-    type: 'payment',
-    amount: '25.50',
-    currency: 'SHM',
-    to: '0x742d...35Cc',
-    memo: 'Coffee at StarBucks',
-    date: new Date(Date.now() - 86400000),
-    status: 'success',
-    hash: '0xabc123...'
-  },
-  {
-    id: '2',
-    type: 'receive',
-    amount: '100.00',
-    currency: 'SHM',
-    from: '0x956a...12Fd',
-    memo: 'Payment from Alice',
-    date: new Date(Date.now() - 172800000),
-    status: 'success',
-    hash: '0xdef456...'
-  },
-  {
-    id: '3',
-    type: 'save',
-    amount: '5.00',
-    currency: 'SHM',
-    memo: 'Micro-save from payment',
-    date: new Date(Date.now() - 259200000),
-    status: 'success',
-  },
-  {
-    id: '4',
-    type: 'split',
-    amount: '45.67',
-    currency: 'SHM',
-    memo: 'Dinner split with friends',
-    date: new Date(Date.now() - 345600000),
-    status: 'pending',
-  },
-  {
-    id: '5',
-    type: 'payment',
-    amount: '12.30',
-    currency: 'SHM',
-    to: '0x123a...89Bc',
-    memo: 'Uber ride',
-    date: new Date(Date.now() - 432000000),
-    status: 'failed',
-  }
-];
+type BlockchainTransaction = Omit<Transaction, 'date'> & {
+  timestamp: number;
+  from: string;
+  to: string;
+  value: string;
+  hash: string;
+};
 
 const filterOptions = [
   { label: 'All', value: 'all' },
@@ -69,12 +26,94 @@ const filterOptions = [
 ];
 
 export const Activity = () => {
+  const  walletState  = useWallet();
   const [activeFilter, setActiveFilter] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [transactions] = useState(mockTransactions);
+  const [isLoading, setIsLoading] = useState(true);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionStats, setTransactionStats] = useState({
+    totalReceived: 0,
+    totalSent: 0,
+    totalSaved: 0
+  });
+
+  useEffect(() => {
+    const fetchTransactions = async () => {
+      if (!walletState.address) return;
+      
+      setIsLoading(true);
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const currentBlock = await provider.getBlockNumber();
+        
+     
+        const fromBlock = Math.max(0, currentBlock - 1000);
+     
+        const filter = {
+          address: walletState.address,
+          fromBlock: fromBlock,
+          toBlock: 'latest',
+        };
+        
+        const logs = await provider.getLogs({
+          ...filter,
+          topics: [ethers.id('Transfer(address,address,uint256)')]
+        });
+        
+     
+        const processedTxs = await Promise.all(logs.map(async (log) => {
+          const tx = await provider.getTransaction(log.transactionHash);
+          const receipt = await tx.wait();
+  
+          const txType = tx.from.toLowerCase() === walletState.address?.toLowerCase() 
+            ? 'payment' as const 
+            : 'receive' as const;
+          
+          const block = await provider.getBlock(receipt.blockNumber);
+          const txDate = block?.timestamp ? new Date(block.timestamp * 1000) : new Date();
+          
+          return {
+            id: tx.hash,
+            type: txType,
+            amount: ethers.formatEther(tx.value),
+            currency: 'SHM',
+            from: tx.from,
+            to: tx.to || '',
+            memo: '',
+            date: txDate,
+            status: receipt.status === 1 ? 'success' : 'failed',
+            hash: tx.hash
+          } as const;
+        }));
+        
+        // Calculate stats
+        const stats = processedTxs.reduce((acc, tx) => {
+          const amount = parseFloat(tx.amount);
+          if (tx.type === 'receive') {
+            acc.totalReceived += amount;
+          } else {
+            acc.totalSent += amount;
+          }
+          return acc;
+        }, { totalReceived: 0, totalSent: 0, totalSaved: 0 });
+        
+        setTransactions(processedTxs);
+        setTransactionStats(stats);
+      } catch (error) {
+        console.error('Error fetching transactions:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchTransactions();
+  }, [walletState.address]);
 
   const filteredTransactions = transactions.filter(tx => {
-    const matchesFilter = activeFilter === 'all' || tx.type === activeFilter;
+    const matchesFilter = activeFilter === 'all' || 
+      (activeFilter === 'payment' && tx.type === 'payment') ||
+      (activeFilter === 'receive' && tx.type === 'receive');
+      
     const matchesSearch = !searchQuery || 
       tx.memo?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       tx.to?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -101,6 +140,35 @@ export const Activity = () => {
       default: return 'default';
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading transactions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!walletState.isConnected) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle>Connect Your Wallet</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-muted-foreground mb-4">
+              Please connect your wallet to view transaction history.
+            </p>
+            <Button className="w-full">Connect Wallet</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-8">
@@ -157,21 +225,27 @@ export const Activity = () => {
         <div className="grid sm:grid-cols-3 gap-4 mb-6">
           <Card variant="glass">
             <CardContent className="pt-6 text-center">
-              <div className="text-2xl font-bold text-success">+245.67</div>
+              <div className="text-2xl font-bold text-success">
+                +{transactionStats.totalReceived.toFixed(4)}
+              </div>
               <div className="text-sm text-muted-foreground">Total Received</div>
             </CardContent>
           </Card>
           
           <Card variant="glass">
             <CardContent className="pt-6 text-center">
-              <div className="text-2xl font-bold text-primary">-123.45</div>
+              <div className="text-2xl font-bold text-primary">
+                -{transactionStats.totalSent.toFixed(4)}
+              </div>
               <div className="text-sm text-muted-foreground">Total Sent</div>
             </CardContent>
           </Card>
           
           <Card variant="glass">
             <CardContent className="pt-6 text-center">
-              <div className="text-2xl font-bold text-secondary">32.50</div>
+              <div className="text-2xl font-bold text-secondary">
+                {transactionStats.totalSaved.toFixed(4)}
+              </div>
               <div className="text-sm text-muted-foreground">Total Saved</div>
             </CardContent>
           </Card>
@@ -183,7 +257,7 @@ export const Activity = () => {
             <CardTitle className="flex items-center justify-between">
               <span>Recent Transactions</span>
               <span className="text-sm font-normal text-muted-foreground">
-                {filteredTransactions.length} results
+                {filteredTransactions.length} {filteredTransactions.length === 1 ? 'transaction' : 'transactions'}
               </span>
             </CardTitle>
           </CardHeader>
@@ -199,51 +273,48 @@ export const Activity = () => {
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                         <span className="text-lg">{getTransactionIcon(transaction.type)}</span>
                       </div>
-                      
-                      <div className="flex-1">
-                        <div className="font-medium">{transaction.memo || 'No description'}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {transaction.date.toLocaleDateString()} • {transaction.date.toLocaleTimeString([], { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
+                      <div>
+                        <div className="font-medium">
+                          {transaction.type === 'payment' 
+                            ? `Sent to ${transaction.to.substring(0, 6)}...${transaction.to.substring(transaction.to.length - 4)}`
+                            : transaction.type === 'receive'
+                            ? `Received from ${transaction.from.substring(0, 6)}...${transaction.from.substring(transaction.from.length - 4)}`
+                            : transaction.memo || 'Transaction'}
                         </div>
-                        {(transaction.to || transaction.from) && (
-                          <div className="text-xs text-muted-foreground font-mono">
-                            {transaction.type === 'receive' ? 'From:' : 'To:'} {transaction.to || transaction.from}
-                          </div>
-                        )}
+                        <div className="text-sm text-muted-foreground">
+                          {transaction.date.toLocaleDateString()}
+                        </div>
                       </div>
                     </div>
-
                     <div className="text-right">
-                      <div className={`font-semibold ${
-                        transaction.type === 'receive' ? 'text-success' : 'text-foreground'
-                      }`}>
+                      <div className={`font-medium ${transaction.type === 'receive' ? 'text-success' : 'text-foreground'}`}>
                         {transaction.type === 'receive' ? '+' : '-'}{transaction.amount} {transaction.currency}
                       </div>
-                      <Chip variant={getStatusColor(transaction.status) as any} size="sm">
-                        {transaction.status}
-                      </Chip>
+                      <div className="text-xs text-muted-foreground">
+                        <a 
+                          href={`https://etherscan.io/tx/${transaction.hash}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
+                          View on Etherscan
+                        </a>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-center py-8">
-                <ActivityIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <p className="text-muted-foreground">No transactions found</p>
+                <p className="text-muted-foreground">
+                  {searchQuery || activeFilter !== 'all' 
+                    ? 'No matching transactions found.' 
+                    : 'No transactions found.'}
+                </p>
               </div>
             )}
           </CardContent>
         </Card>
-
-        {/* Load More */}
-        {filteredTransactions.length > 0 && (
-          <div className="text-center mt-6">
-            <Button variant="outline">Load More Transactions</Button>
-          </div>
-        )}
       </div>
     </div>
   );
