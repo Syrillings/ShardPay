@@ -34,8 +34,7 @@ export const Header = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, [scrolled]);
 
-  // Format wallet address for mobile
-  const formatAddress = (address: string) => {
+   const formatAddress = (address: string) => {
     if (!address) return '';
     if (window.innerWidth >= 640) return address;
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -110,7 +109,7 @@ export const Header = () => {
               </Button>
             )}
 
-            <Button
+            {/* <Button
               variant="ghost"
               size="icon"
               className="md:hidden h-10 w-10"
@@ -122,7 +121,7 @@ export const Header = () => {
               ) : (
                 <Menu className="h-5 w-5" />
               )}
-            </Button>
+            </Button> */}
           </div>
         </div>
 

@@ -1,17 +1,23 @@
 import { Link } from 'react-router-dom';
-import { Wallet, Send, Users, PiggyBank, TrendingUp, Zap } from 'lucide-react';
+import { Wallet, Send, Users, PiggyBank, TrendingUp, Zap, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Chip } from '../components/ui/Chip';
 import { useWallet } from '../hooks/useWallet';
+import { useVault } from '../hooks/useVault';
 
 export const Home = () => {
   const { isConnected, onConnectWallet, isConnecting, balance } = useWallet();
+  const { vaultSummary } = useVault();
+
+  const formattedSaved = vaultSummary.saved ? parseFloat(vaultSummary.saved).toFixed(2) : '0.00';
+  const formattedGoal = vaultSummary.goal ? parseFloat(vaultSummary.goal).toFixed(2) : '0.00';
+  const progressPercentage = vaultSummary.progress ? Math.round(vaultSummary.progress * 10) / 10 : 0;
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-8">
       <div className="mx-auto max-w-4xl px-4 py-8">
-        {/* Hero Section */}
+      
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
             Welcome to ShardPay
@@ -52,7 +58,7 @@ export const Home = () => {
           )}
         </div>
 
-        {/* Quick Actions */}
+        
         <div className="mb-12">
           <h2 className="text-2xl font-bold mb-6 flex items-center">
             <Zap className="mr-2 h-6 w-6 text-primary" />
@@ -129,15 +135,27 @@ export const Home = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold mb-2">12,450 SHM</div>
-                <div className="text-sm text-muted-foreground">Goal: 50,000 SHM</div>
+                <div className="text-3xl font-bold mb-2">{formattedSaved} SHM</div>
+                <div className="text-sm text-muted-foreground">
+                  {vaultSummary.isLoading ? (
+                    <div className="flex items-center">
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      Loading...
+                    </div>
+                  ) : (
+                    `Goal: ${formattedGoal} SHM`
+                  )}
+                </div>
                 <div className="mt-4">
                   <div className="flex justify-between text-sm mb-1">
                     <span>Progress</span>
-                    <span>24.9%</span>
+                    <span>{progressPercentage}%</span>
                   </div>
                   <div className="w-full bg-muted rounded-full h-2">
-                    <div className="bg-gradient-primary h-2 rounded-full" style={{ width: '24.9%' }}></div>
+                    <div 
+                      className="bg-gradient-primary h-2 rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${progressPercentage}%` }}
+                    ></div>
                   </div>
                 </div>
               </CardContent>
