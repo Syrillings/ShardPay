@@ -27,7 +27,7 @@ export const BottomNav = () => {
               to={item.href}
               className={`flex flex-col items-center space-y-1 px-3 py-2 rounded-xl transition-all duration-300 ${
                 active
-                  ? 'text-primary bg-primary/10'
+                  ? 'text-primary'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
