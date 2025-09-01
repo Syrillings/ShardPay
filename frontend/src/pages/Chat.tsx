@@ -45,7 +45,7 @@ export const Chat = () => {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-8">
-      <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mx-auto max-w-4xl px-4 py-4 md:py-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2 flex items-center justify-center">
             {/* <Sparkles className="mr-3 h-8 w-8 text-primary" /> */}
@@ -57,61 +57,63 @@ export const Chat = () => {
         </div>
 
         {/* Chat Container */}
-        <Card variant="elevated" className="h-[600px] flex flex-col">
-          {/* Messages Area */}
-          <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                onReaction={(emoji) => addReaction(message.id, emoji)}
-              />
-            ))}
-            
-            {isTyping && <TypingIndicator />}
-            <div ref={messagesEndRef} />
-          </CardContent>
+        <div className="md:block">
+          <Card variant="elevated" className="h-[600px] flex flex-col md:block">
+            {/* Messages Area */}
+            <CardContent className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  onReaction={(emoji) => addReaction(message.id, emoji)}
+                />
+              ))}
+              
+              {isTyping && <TypingIndicator />}
+              <div ref={messagesEndRef} />
+            </CardContent>
 
-          {/* Input Area */}
-          <div className="border-t border-border p-6">
-            {/* Quick Prompts */}
-            <div className="mb-4">
-              <div className="text-sm font-medium mb-2 text-muted-foreground">
-                Quick prompts:
+            {/* Input Area */}
+            <div className="border-t border-border p-4 md:p-6">
+              {/* Quick Prompts */}
+              <div className="mb-4">
+                <div className="text-sm font-medium mb-2 text-muted-foreground">
+                  Quick prompts:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {quickPrompts.map((prompt) => (
+                    <button
+                      key={prompt}
+                      onClick={() => setInputMessage(prompt)}
+                      className="px-3 py-1 text-xs rounded-full bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {quickPrompts.map((prompt) => (
-                  <button
-                    key={prompt}
-                    onClick={() => setInputMessage(prompt)}
-                    className="px-3 py-1 text-xs rounded-full bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {prompt}
-                  </button>
-                ))}
+
+              {/* Message Input */}
+              <div className="flex gap-3">
+                <MyInput
+                  placeholder="Ask me anything about your finances..."
+                  value={inputMessage}
+                  onChange={(e) => setInputMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="flex-1"
+                />
+                <Button
+                  variant="glow"
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim() || isTyping}
+                  size="icon"
+                >
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-
-            {/* Message Input */}
-            <div className="flex gap-3">
-              <MyInput
-                placeholder="Ask me anything about your finances..."
-                value={inputMessage}
-                onChange={(e) => setInputMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className="flex-1"
-              />
-              <Button
-                variant="glow"
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim() || isTyping}
-                size="icon"
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
 
         {/* AI Features */}
         <Card variant="glass" className="mt-6">

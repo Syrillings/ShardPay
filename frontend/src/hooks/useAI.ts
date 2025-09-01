@@ -198,8 +198,7 @@ export const useAI = () => {
 
       const data = await response.json();
       const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      
-      // Try to parse the AI response as JSON
+  
       try {
         const jsonMatch = aiText.match(/```json\n([\s\S]*?)\n```/) || 
                         aiText.match(/```\n([\s\S]*?)\n```/) || 
@@ -225,7 +224,7 @@ export const useAI = () => {
   return {
     messages,
     isTyping,
-    setIsTyping, // Expose the setter directly
+    setIsTyping, 
     sendMessage,
     addReaction,
     parseReceipt,

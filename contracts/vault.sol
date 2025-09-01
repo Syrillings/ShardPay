@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
-//rando
+//random
 contract Vault {
     mapping(address => uint256) public balances;
     mapping(address => uint256) public goals;

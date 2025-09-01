@@ -1,9 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useCallback, useEffect } from 'react';
 import { VaultSummary, Transaction } from '../types';
 import { ethers } from 'ethers';
 import { toast } from 'sonner';
 
-// Vault contract ABI (replace with your actual vault contract ABI)
 const VAULT_ABI = [
   'function deposit(uint256 amount) external',
   'function withdraw(uint256 amount) external',
@@ -14,8 +14,8 @@ const VAULT_ABI = [
   'function getMicroSaveStatus(address user) external view returns (bool)'
 ];
 
-
-const VAULT_CONTRACT_ADDRESS = '0x5FbDB2315678afecb367f032d93F642f64180aa3'; 
+const VAULT_CONTRACT_ADDRESS = import.meta.env.VITE_PUBLIC_VAULT_CONTRACT_ADDRESS;
+console.log('Vault Contract Address:', VAULT_CONTRACT_ADDRESS);
 
 export const useVault = () => {
   const [vaultSummary, setVaultSummary] = useState<VaultSummary>({
@@ -28,56 +28,104 @@ export const useVault = () => {
 
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
 
-  const getVaultSummary = useCallback(async (walletAddress?: string) => {
+  const fetchVaultSummary = useCallback(async (walletAddress: string) => {
     if (!walletAddress) {
-      setVaultSummary(prev => ({
-        ...prev,
-        saved: '0',
-        goal: '0',
-        progress: 0,
-        isLoading: false
-      }));
+      console.log('No wallet address provided');
       return;
     }
-  
+
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum, {
-        name: 'custom',
-        chainId: parseInt(window.ethereum.chainId, 16),
+      if (!window.ethereum) {
+        throw new Error('No Ethereum provider found');
+      }
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const network = await provider.getNetwork();
+      console.log('Connected to network:', network);
+
+      const expectedChainIdHex = "0x1f90"; 
+if (network.chainId !== BigInt(8080)) {
+  try {
+   
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: expectedChainIdHex }],
+    });
+  } catch (switchError: any) {
+        if (switchError.code === 4902) {
+      await window.ethereum.request({
+        method: "wallet_addEthereumChain",
+        params: [{
+          chainId: expectedChainIdHex,
+          chainName: "Shardeum Sphinx 1.X",
+          nativeCurrency: { name: "SHM", symbol: "SHM", decimals: 18 },
+          rpcUrls: ["https://sphinx.shardeum.org/"],
+          blockExplorerUrls: ["https://explorer-sphinx.shardeum.org/"],
+        }],
       });
-      
-      const signer = await provider.getSigner();
-      const vaultContract = new ethers.Contract(VAULT_CONTRACT_ADDRESS, VAULT_ABI, signer);
+    } else {
+      throw switchError;
+    }
+  }
+}
+
+      const vaultContract = new ethers.Contract(
+        VAULT_CONTRACT_ADDRESS,
+        VAULT_ABI,
+        provider
+      );
+
+      console.log('Contract address:', VAULT_CONTRACT_ADDRESS);
+
+      const address = walletAddress;
+      console.log('Fetching data for address:', address);
+
+      // Test a simple call with a function that exists in the contract
+      try {
+        // Using getUserBalance function selector: keccak256('getUserBalance(address)') = 0x27e235e3...
+        // But we'll use the contract method directly for better error handling
+        const testCall = await vaultContract.getUserBalance(address);
+        console.log('Test call successful, user balance:', testCall.toString());
+      } catch (testError) {
+        console.error('Test call failed:', testError);
+        throw new Error(`Failed to call contract at ${VAULT_CONTRACT_ADDRESS}. Make sure the contract is deployed and the address is correct.`);
+      }
+
+      // Make individual calls instead of Promise.all for better error handling
+      const savedBalance = await vaultContract.getUserBalance(address);
+      const goal = await vaultContract.getGoal(address);
+      const microSaveStatus = await vaultContract.getMicroSaveStatus(address);
   
-      const address = ethers.getAddress(walletAddress);
-  
-      const [savedBalance, goal, microSaveEnabled] = await Promise.all([
-        vaultContract.getUserBalance(address),
-        vaultContract.getGoal(address),
-        vaultContract.getMicroSaveStatus(address)
-      ]);
-  
+      // Format values
       const saved = ethers.formatEther(savedBalance);
       const goalAmount = ethers.formatEther(goal);
-      const progress = parseFloat(saved) / parseFloat(goalAmount) * 100;
+      const progress = parseFloat(goalAmount) > 0 
+        ? (parseFloat(saved) / parseFloat(goalAmount)) * 100 
+        : 0;
   
       setVaultSummary({
         saved,
         goal: goalAmount,
         progress: isNaN(progress) ? 0 : progress,
-        microSaveEnabled,
+        microSaveEnabled: microSaveStatus,
         isLoading: false
       });
     } catch (error) {
-      console.error('Error fetching vault summary:', error);
-      toast.error('Failed to load vault data');
+      console.error('Error in fetchVaultSummary:', {
+        error,
+        contractAddress: VAULT_CONTRACT_ADDRESS,
+        walletAddress,
+        network: window.ethereum?.networkVersion ? 
+          `Chain ID: ${window.ethereum.chainId}` : 'Not connected'
+      });
+      
+      toast.error('Failed to load vault data. Please check your network connection and try again.');
       setVaultSummary(prev => ({
         ...prev,
         isLoading: false
       }));
     }
   }, []);
- 
 
   const setMicroSaveToggle = useCallback(async (enabled: boolean) => {
     try {
@@ -125,7 +173,7 @@ export const useVault = () => {
   
       const accounts = await window.ethereum.request({ method: 'eth_accounts' });
       const walletAddress = accounts[0];
-      await getVaultSummary(walletAddress);
+      await fetchVaultSummary(walletAddress);
       
       toast.success('Goal updated successfully');
     } catch (error) {
@@ -133,7 +181,7 @@ export const useVault = () => {
       toast.error('Failed to update goal');
       throw error;
     }
-  }, [getVaultSummary]);
+  }, [fetchVaultSummary]);
 
   const addToVault = useCallback(async (amount: string, memo?: string) => {
     try {
@@ -169,7 +217,7 @@ export const useVault = () => {
       // Refresh the vault summary
       const accounts = await window.ethereum.request({ method: 'eth_accounts' });
       const walletAddress = accounts[0];
-      await getVaultSummary(walletAddress);
+      await fetchVaultSummary(walletAddress);
       
       toast.success('Deposit successful');
     } catch (error) {
@@ -177,7 +225,7 @@ export const useVault = () => {
       toast.error('Failed to deposit to vault');
       throw error;
     }
-  }, [getVaultSummary]);
+  }, [fetchVaultSummary]);
 
   
   const fetchRecentTransactions = useCallback(async (walletAddress: string) => {
@@ -195,7 +243,7 @@ export const useVault = () => {
         const accounts = await window.ethereum.request({ method: 'eth_accounts' });
         if (accounts.length > 0) {
           const walletAddress = accounts[0];
-          await getVaultSummary(walletAddress);
+          await fetchVaultSummary(walletAddress);
           const transactions = await fetchRecentTransactions(walletAddress);
           setRecentTransactions(transactions);
         } else {
@@ -208,7 +256,7 @@ export const useVault = () => {
     };
 
     checkWalletConnection();
-  }, [getVaultSummary, fetchRecentTransactions]);
+  }, [fetchVaultSummary, fetchRecentTransactions]);
 
   return {
     vaultSummary,
@@ -216,6 +264,8 @@ export const useVault = () => {
     setMicroSaveToggle,
     createOrUpdateGoal,
     addToVault,
-    refreshVault: getVaultSummary,
+    refreshVault: fetchVaultSummary,
   };
 };
+
+
